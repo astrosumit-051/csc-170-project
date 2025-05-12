@@ -1,0 +1,406 @@
+from graphics import *
+import random
+
+
+def is_clicked(rectangle, point):
+    if point:
+        p1 = rectangle.getP1()
+        p2 = rectangle.getP2()
+        if p1.getX() <= point.getX() <= p2.getX():
+            if p1.getY() <= point.getY() <= p2.getY():
+                return True
+    return False
+
+def create_intro_window():
+    intro_win = GraphWin("Introduction", 500, 400)
+    intro_win.setBackground("black")
+
+    intro_text_message = (
+        "You wake up in a cold, damp, dark area. You're lying on the ground\n"
+        "in a pool of blood and vomit. It appears to be your own.\n\n"
+        "Wow! What a wild night last night was. You remember so little,\n"
+        "but your head pounds and you wish you were home in bed.\n\n"
+        "Oh well. You stagger to your feet and bump up against a slimy wall.\n"
+        "Ewwww! Well, time to get out of here. You notice your pockets are empty.\n"
+        "Even your trusty dagger is gone. This so sucks.\n\n"
+        "Well, you're not getting home by standing here... Get moving!\n"
+        "You spot a sling and some rocks on the ground and take them."
+    )
+    intro_text = Text(Point(250, 150), intro_text_message)
+    intro_text.setTextColor("white")
+    intro_text.setSize(14)
+    intro_text.draw(intro_win)
+
+    button_rect_obj = Rectangle(Point(150, 300), Point(350, 350))
+    button_rect_obj.setFill("light blue")
+    button_rect_obj.setOutline("white")
+    button_rect_obj.draw(intro_win)
+
+    button_text_label = Text(Point(250, 325), "Click here to start game")
+    button_text_label.setTextColor("black")
+    button_text_label.setSize(12)
+    button_text_label.draw(intro_win)
+
+    clicked_start_button = False
+    while not clicked_start_button:
+        click_event = intro_win.getMouse()
+        if is_clicked(button_rect_obj, click_event):
+            clicked_start_button = True
+    intro_win.close()
+
+def draw_status(win, gold, has_sword):
+    status_text_content = "Gold: " + str(gold) + "\nSword: "
+    if has_sword:
+        status_text_content = status_text_content + "Yes"
+    else:
+        status_text_content = status_text_content + "No"
+    status_text = Text(Point(645, 50), status_text_content)
+    status_text.setSize(12)
+    status_text.draw(win)
+    return status_text
+
+def create_button(win, center_point, width, height, label):
+    half_width = width / 2
+    half_height = height / 2
+    p1 = Point(center_point.getX() - half_width, center_point.getY() - half_height)
+    p2 = Point(center_point.getX() + half_width, center_point.getY() + half_height)
+    rect = Rectangle(p1, p2)
+    rect.setFill("light gray")
+    rect.draw(win)
+    text = Text(center_point, label)
+    text.draw(win)
+    return rect
+
+def draw_square(win, row, col, color, square_size):
+    x1 = col * square_size
+    y1 = row * square_size
+    x2 = (col + 1) * square_size
+    y2 = (row + 1) * square_size
+    square = Rectangle(Point(x1, y1), Point(x2, y2))
+    square.setFill(color)
+    square.draw(win)
+
+def draw_game_board(win, map_data, visible_map, square_size):
+    num_rows = len(map_data)
+    num_cols = len(map_data[0])
+    for r in range(num_rows):
+        for c in range(num_cols):
+            if visible_map[r][c]:
+                if map_data[r][c] == "W":
+                    color = "grey"
+                elif map_data[r][c] == "U":
+                    color = "green"
+                else:
+                    color = "light grey"
+                draw_square(win, r, c, color, square_size)
+
+def draw_buttons(win, button_area_center_x, button_y_base):
+    up = create_button(win, Point(button_area_center_x, button_y_base - 50), 40, 40, "Up")
+    down = create_button(win, Point(button_area_center_x, button_y_base + 50), 40, 40, "Down")
+    left = create_button(win, Point(button_area_center_x - 50, button_y_base), 40, 40, "<")
+    right = create_button(win, Point(button_area_center_x + 50, button_y_base), 40, 40, ">")
+    return up, down, left, right
+
+def show_message(message_text):
+    msg_win_width = 300
+    msg_win_height = 150
+    msg_win = GraphWin("Information", msg_win_width, msg_win_height)
+    msg_win.setBackground("white")
+
+    text_message_obj = Text(Point(msg_win_width / 2, msg_win_height / 2 - 20), message_text)
+    text_message_obj.setSize(12)
+    text_message_obj.draw(msg_win)
+
+    button_width = 150
+    button_height = 30
+    button_center_x = msg_win_width / 2
+    button_center_y = msg_win_height - 30
+
+    button_x1 = button_center_x - button_width / 2
+    button_y1 = button_center_y - button_height / 2
+    button_x2 = button_center_x + button_width / 2
+    button_y2 = button_center_y + button_height / 2
+
+    continue_button_rect = Rectangle(Point(button_x1, button_y1), Point(button_x2, button_y2))
+    continue_button_rect.setFill("light blue")
+    continue_button_rect.setOutline("black")
+    continue_button_rect.draw(msg_win)
+
+    button_label_text = Text(Point(button_center_x, button_center_y), "Click to continue")
+    button_label_text.setSize(10)
+    button_label_text.draw(msg_win)
+
+    clicked_on_button = False
+    while not clicked_on_button and not msg_win.isClosed():
+        click_point = msg_win.getMouse()
+        if is_clicked(continue_button_rect, click_point):
+            clicked_on_button = True
+
+    if not msg_win.isClosed():
+        msg_win.close()
+
+# --- Map/Visibility Functions ---
+
+def read_map(filename):
+    map_lines = []
+    file_handle = open(filename, "r")
+    for line in file_handle:
+        stripped_line = line.strip()
+        if stripped_line:
+            row_list = []
+            for char_in_line in stripped_line:
+                row_list.append(char_in_line)
+            map_lines.append(row_list)
+    file_handle.close()
+    if len(map_lines) == 0:
+        print("Warning: Map file " + filename + " is empty or contains no valid map data.")
+        return []
+    return map_lines
+
+def init_visible_map(num_rows, num_cols):
+    visible_map = []
+    for r in range(num_rows):
+        row = []
+        for c in range(num_cols):
+            row.append(False)
+        visible_map.append(row)
+    return visible_map
+
+def get_adjacent_positions(row, col, num_rows, num_cols):
+    positions = []
+    if row > 0:
+        positions.append((row - 1, col))
+    if row < num_rows - 1:
+        positions.append((row + 1, col))
+    if col > 0:
+        positions.append((row, col - 1))
+    if col < num_cols - 1:
+        positions.append((row, col + 1))
+    return positions
+
+def update_visibility(visible_map, row, col, num_rows, num_cols):
+    visible_map[row][col] = True
+    adjacents = get_adjacent_positions(row, col, num_rows, num_cols)
+    for pos in adjacents:
+        r = pos[0]
+        c = pos[1]
+        visible_map[r][c] = True
+
+def find_player(map_data):
+    num_rows = len(map_data)
+    num_cols = len(map_data[0])
+    for r in range(num_rows):
+        for c in range(num_cols):
+            if map_data[r][c] == "U":
+                return r, c
+    return -1, -1  # Use -1, -1 to indicate not found
+
+# --- Game Logic Functions ---
+
+def is_valid_move(map_data, row, col):
+    num_rows = len(map_data)
+    num_cols = len(map_data[0])
+    if row < 0:
+        return False
+    if row >= num_rows:
+        return False
+    if col < 0:
+        return False
+    if col >= num_cols:
+        return False
+    if map_data[row][col] == "W":
+        return False
+    return True
+
+def get_new_position(row, col, direction):
+    if direction == "up":
+        return row - 1, col
+    if direction == "down":
+        return row + 1, col
+    if direction == "left":
+        return row, col - 1
+    if direction == "right":
+        return row, col + 1
+    return row, col
+
+def move_player_on_map(map_data, old_row, old_col, new_row, new_col):
+    map_data[old_row][old_col] = "_"
+    map_data[new_row][new_col] = "U"
+
+def handle_encounter(current_square_content, has_sword, gold):
+    # Returns (game_over, level_complete, has_sword, gold, message)
+    if current_square_content == "G":
+        gold = gold + 50
+        return False, False, True, gold, "You found 50 gold! Total gold: " + str(gold)
+    if current_square_content == "S":
+        return False, False, True, gold, "You found a sword!"
+    if current_square_content == "K" or current_square_content == "O" or current_square_content == "D":
+        monster_types = {"K": "Kobold", "O": "Ogre", "D": "Dragon"}
+        monster_name = monster_types[current_square_content]
+        win_chance = 0.0
+        if current_square_content == "K":
+            if has_sword:
+                win_chance = 0.99
+            else:
+                win_chance = 0.75
+        if current_square_content == "O":
+            if has_sword:
+                win_chance = 0.90
+            else:
+                win_chance = 0.20
+        if current_square_content == "D":
+            if has_sword:
+                win_chance = 0.10
+            else:
+                win_chance = 0.01
+        rand_value = random.random()
+        if rand_value < win_chance:
+            return False, False, has_sword, gold, "You defeated the " + monster_name + "!"
+        else:
+            return True, False, has_sword, gold, "The " + monster_name + " defeated you!"
+    if current_square_content == "P":
+        return True, False, has_sword, gold, "You fell into a pit!"
+    if current_square_content == "E":
+        return False, True, has_sword, gold, ""
+    return False, False, has_sword, gold, ""
+
+# --- Main Game Loop ---
+
+def play_level(win, map_file, initial_gold, initial_has_sword):
+    # --- Helper: Setup the map and visibility ---
+    def setup_map_and_visibility(map_file):
+        map_data = read_map(map_file)
+        if len(map_data) == 0:
+            print("Error: Failed to load map: " + map_file + ". Cannot start level.")
+            return [], [], -1, -1
+        num_rows = len(map_data)
+        num_cols = len(map_data[0])
+        visible_map = init_visible_map(num_rows, num_cols)
+        player_row, player_col = find_player(map_data)
+        if player_row == -1 or player_col == -1:
+            print("Error: Player 'U' not found in map file: " + map_file)
+        return map_data, visible_map, player_row, player_col
+
+    # --- Helper: Draw everything for the current state ---
+    def draw_everything(win, map_data, visible_map, gold, has_sword, button_area_center_x, button_y_base):
+        win.delete("all")
+        draw_game_board(win, map_data, visible_map, 35)
+        draw_status(win, gold, has_sword)
+        up_button, down_button, left_button, right_button = draw_buttons(win, button_area_center_x, button_y_base)
+        win.update()
+        return up_button, down_button, left_button, right_button
+
+    # --- Helper: Handle a single player move ---
+    def handle_player_move(win, map_data, visible_map, player_row, player_col, gold, has_sword, up_button, down_button, left_button, right_button):
+        click = win.getMouse()
+        direction = ""
+        if is_clicked(up_button, click):
+            direction = "up"
+        if is_clicked(down_button, click):
+            direction = "down"
+        if is_clicked(left_button, click):
+            direction = "left"
+        if is_clicked(right_button, click):
+            direction = "right"
+        if direction == "":
+            return player_row, player_col, gold, has_sword, False, False, False  # No move
+
+        new_row, new_col = get_new_position(player_row, player_col, direction)
+        if not is_valid_move(map_data, new_row, new_col):
+            return player_row, player_col, gold, has_sword, False, False, False  # Invalid move
+
+        current_square_content = map_data[new_row][new_col]
+        move_player_on_map(map_data, player_row, player_col, new_row, new_col)
+        player_row = new_row
+        player_col = new_col
+
+        game_over, level_complete, has_sword, gold, message = handle_encounter(current_square_content, has_sword, gold)
+        if message != "":
+            show_message(message)
+        if game_over:
+            move_player_on_map(map_data, new_row, new_col, player_row, player_col)
+            player_row = player_row
+            player_col = player_col
+
+        update_visibility(visible_map, player_row, player_col, len(map_data), len(map_data[0]))
+        return player_row, player_col, gold, has_sword, game_over, level_complete, True  # True means moved
+
+    # --- Main logic of play_level ---
+    map_data, visible_map, player_row, player_col = setup_map_and_visibility(map_file)
+    if len(map_data) == 0 or player_row == -1:
+        return False, initial_gold, initial_has_sword
+
+    has_sword = initial_has_sword
+    gold = initial_gold
+    game_over = False
+    level_complete = False
+
+    button_area_center_x = 645
+    button_y_base = 200
+
+    update_visibility(visible_map, player_row, player_col, len(map_data), len(map_data[0]))
+    up_button, down_button, left_button, right_button = draw_everything(
+        win, map_data, visible_map, gold, has_sword, button_area_center_x, button_y_base
+    )
+
+    while not game_over and not level_complete:
+        player_row, player_col, gold, has_sword, game_over, level_complete, moved = handle_player_move(
+            win, map_data, visible_map, player_row, player_col, gold, has_sword,
+            up_button, down_button, left_button, right_button
+        )
+        if moved and not game_over and not level_complete:
+            up_button, down_button, left_button, right_button = draw_everything(
+                win, map_data, visible_map, gold, has_sword, button_area_center_x, button_y_base
+            )
+
+    return level_complete, gold, has_sword
+
+
+# --- Main Program ---
+
+def main():
+    create_intro_window()
+
+    win_width = 765
+    win_height = 565
+    win = GraphWin("Adventure Game", win_width, win_height, autoflush=False)
+    win.setBackground("white")
+
+    current_gold = 0
+    current_has_sword = False
+
+    level1_complete, current_gold, current_has_sword = play_level(win, "map01.txt", current_gold, current_has_sword)
+
+    final_message_text = ""
+    final_message_color = "black"
+
+    if level1_complete:
+        show_message("You found a ladder and have moved up to the next level!")
+        level2_complete, current_gold, current_has_sword = play_level(win, "map02.txt", current_gold, current_has_sword)
+        if level2_complete:
+            show_message("Congratulations! You have won the game!")
+            final_message_text = "You Won!"
+            final_message_color = "green"
+        else:
+            final_message_text = "Game Over!"
+            final_message_color = "red"
+    else:
+        final_message_text = "Game Over!"
+        final_message_color = "red"
+
+    win.delete("all")
+    win.setBackground("white")
+    message_obj = Text(Point(win.getWidth() / 2, win.getHeight() / 2), final_message_text)
+    message_obj.setSize(36)
+    message_obj.setTextColor(final_message_color)
+    message_obj.setStyle("bold")
+    message_obj.draw(win)
+    win.update()
+
+    Text(Point(win.getWidth()/2, win.getHeight()/2 + 50), "Click anywhere to close.").draw(win)
+    win.update()
+    win.getMouse()
+    win.close()
+
+if __name__ == "__main__":
+    main()
